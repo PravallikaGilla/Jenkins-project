@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datastore-app
+  labels:
+    type: webapp
+spec:
+  template:
+    metadata:
+      name: myapp-pod
+      labels:
+        type: webapp
+    spec:
+      containers:
+        - name: mywebapp
+          image: pravallikagilla/python-sample:v3
+  replicas: 3
+  selector:
+    matchLabels:
+      type: webapp

@@ -1,0 +1,55 @@
+pipeline {
+  agent any
+
+  environment {
+    GITHUB_TOKEN = credentials("Jenkins-Github")
+  }
+
+  parameters {
+    string(name: "App_Name", description: "Application name that needs to be deployed")
+    string(name: "App_Version", description: "Version of the application that needs to be deployed")
+  }
+
+  stages {
+    stage("Cloning Repo") {
+      steps {
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: '*/main']],
+          doGenerateSubmoduleConfigurations: false,
+          extensions: [],
+          userRemoteConfigs: [[
+            url: 'https://github.com/PravallikaGilla/Kubernetes-CD.git', credentialsId: 'Jenkins-Github'
+          ]]
+        ])
+      }
+    }
+
+    stage("Updating Image Version in File") {
+      steps {
+        sh """
+          echo "-------- Updating File Content --------"
+          cd "${params.App_Name}"
+          sed -i 's|image:.*|image: pravallikagilla/python-sample:${params.App_Version}|' "${params.App_Name}.yaml"
+          echo "-------- File Content Updated Successfully --------"
+        """
+      }
+    }
+
+    stage("Pushing Code to GitHub") {
+      steps {
+        sh """
+          echo "-------- Pushing Changes To GitHub --------"
+          git config user.name "jenkins"
+          git config user.email "jenkins@example.com"
+          git add .
+          git commit -am "docker image updated"
+          git remote set-url origin https://${GITHUB_TOKEN}@github.com/PravallikaGilla/Kubernetes-CD.git
+          git push origin HEAD:main
+          echo "-------- Pushed Changes Successfully --------"
+        """
+      }
+    }
+ }
+}
+
