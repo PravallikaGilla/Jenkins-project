@@ -1,0 +1,87 @@
+pipeline {
+  agent any
+
+  parameters {
+    string(name: "App_Version", description: "provide application version")
+  }
+
+  environment {
+    DOCKERHUB_CREDENTIALS=credentials("dockerhub")
+  }
+
+  stages {
+    stage("Checkout Stage") {
+      steps{
+        checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/PravallikaGilla/Jenkins-Deployment.git', credentialsId: 'Jenkins-Github']])
+      }
+    }
+    stage("Building Application") {
+      steps {
+        sh """
+          echo "-------- Building Application --------"
+          "C:\\Program Files\\Maven\\apache-maven-3.9.9\\bin\\mvn" clean package
+          echo "------- Application Built Successfully --------"
+        """
+      }
+    }
+    stage("Execute Testcases") {
+      steps {
+        sh """
+          echo "-------- Executing Testcases --------"
+          "C:\\Program Files\\Maven\\apache-maven-3.9.9\\bin\\mvn" test
+          echo "-------- Testcases Execution Complete --------"
+        """
+      }
+    }
+    stage("Creating Docker Image") {
+      steps {
+        sh """
+          echo "-------- Building Docker Image --------"
+          docker build -t python-sample:"${App_Version}" .
+          echo "-------- Image Successfully Built --------"
+        """
+      }
+    }
+    stage("Tagging Docker Image") {
+      steps{
+        sh """
+          echo "-------- Tagging Docker Image --------"
+          docker tag python-sample:"${App_Version}" pravallikagilla/python-sample:"${App_Version}"
+          echo "-------- Tagging Docker Image Completed."
+        """
+      }
+    }
+    stage("Loggingin & Pushing Docker image To DockerHub") {
+      steps {
+        sh """
+          echo "-------- Logging To DockerHub --------"
+          docker login -u $DOCKERHUB_CREDENTIALS_USR --password $DOCKERHUB_CREDENTIALS_PSW
+          echo "-------- DockerHub Login Successful --------"
+
+          echo "-------- Pushing Docker Image To DockerHub --------"
+          docker push pravallikagilla/python-sample:"${App_Version}"
+          echo "-------- Docker Image Pushed Successfully --------"
+        """
+      }
+    }
+    stage("cleanup") {
+      steps {
+        sh """
+           echo "-------- Cleaning Up Jenkins Machine --------"
+           docker image prune -a -f
+           echo "-------- Clean Up Successful --------"
+        """
+      }
+    }
+    stage("Deployment Acceptance") {
+      steps {
+        input 'Trigger Down Stream Job'
+      }
+    }
+    stage("Triggering Deployment Job") {
+      steps {
+        build job: "KubernetesDeployment", parameters: [string(name: "App_Name", value: "javaapp-deploy"), string(name: "App_Version", value: "${params.App_Version}")]
+      }
+    }
+  }
+}
